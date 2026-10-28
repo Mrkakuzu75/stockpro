@@ -4,12 +4,52 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import pg from 'pg';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DB_PATH = process.env.DATABASE_PATH || path.join(DATA_DIR, 'stockpro-db.json');
 
 const emptyDb = () => ({ users: [], products: [], movements: [] });
+
+// --- Stockage distant (PostgreSQL) : actif si DATABASE_URL est défini ---
+const DATABASE_URL = process.env.DATABASE_URL || '';
+let pool = null;
+
+function getPool() {
+  if (!DATABASE_URL) return null;
+  if (!pool) {
+    pool = new pg.Pool({
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 3,
+    });
+  }
+  return pool;
+}
+
+async function loadFromPostgres(remote) {
+  await remote.query(
+    `CREATE TABLE IF NOT EXISTS stockpro_state (
+       id TEXT PRIMARY KEY,
+       data JSONB NOT NULL,
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+     )`
+  );
+  const { rows } = await remote.query(`SELECT data FROM stockpro_state WHERE id = 'main'`);
+  if (rows.length > 0) {
+    const parsed = rows[0].data || {};
+    db = {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      products: Array.isArray(parsed.products) ? parsed.products : [],
+      movements: Array.isArray(parsed.movements) ? parsed.movements : [],
+    };
+  } else {
+    db = emptyDb();
+    await persist();
+  }
+  console.log('[stockpro] Base PostgreSQL connectée.');
+}
 
 let db = emptyDb();
 let writeQueue = Promise.resolve();
@@ -29,6 +69,12 @@ export function sanitizeNumber(val, defaultVal = 0, max = 1000000000) {
 }
 
 export async function initStore() {
+  const remote = getPool();
+  if (remote) {
+    await loadFromPostgres(remote);
+    await ensureAdmin();
+    return;
+  }
   await mkdir(DATA_DIR, { recursive: true });
   if (existsSync(DB_PATH)) {
     try {
@@ -57,6 +103,15 @@ async function persist() {
       console.error('[stockpro] Erreur dans la file d’écriture:', err);
     })
     .then(async () => {
+      const remote = getPool();
+      if (remote) {
+        await remote.query(
+          `INSERT INTO stockpro_state (id, data, updated_at) VALUES ('main', $1::jsonb, now())
+           ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+          [JSON.stringify(db)]
+        );
+        return;
+      }
       await mkdir(path.dirname(DB_PATH), { recursive: true });
       const tmp = `${DB_PATH}.tmp-${Date.now()}`;
       const payload = JSON.stringify(db, null, 2);

@@ -1,10 +1,18 @@
-# Configuration officielle Netlify pour StockPro
+# Configuration Netlify pour StockPro (frontend uniquement)
 
 [build]
   command = "npm run build"
   publish = "dist"
 
-# Redirection SPA : toutes les routes non-fichiers renvoient vers index.html
+# 1) Les appels /api sont envoyés vers l'API hébergée sur Render
+#    (remplace l'URL par celle de ton service Render)
+[[redirects]]
+  from = "/api/*"
+  to = "https://stockpro-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# 2) Redirection SPA : toutes les autres routes renvoient vers index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
