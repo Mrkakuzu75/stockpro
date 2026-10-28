@@ -1,0 +1,6 @@
+{
+  "name": "StockPro - Gestion de Stock Commerçants",
+  "description": "Application web de gestion de stock simple et intuitive pour les commerçants de Côte d'Ivoire. Suivi des stocks, alertes de réapprovisionnement et valorisation en FCFA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

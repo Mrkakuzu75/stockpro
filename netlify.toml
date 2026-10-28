@@ -1,0 +1,25 @@
+# Configuration officielle Netlify pour StockPro
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Redirection SPA : toutes les routes non-fichiers renvoient vers index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# En-têtes HTTP de sécurité
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+
+# Cache long pour les assets générés avec hash (CSS/JS)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
